@@ -9,12 +9,14 @@
 /* Begin PBXBuildFile section */
 		584362302F5EEB9100DD0F08 /* AGENTS.md in Resources */ = {isa = PBXBuildFile; fileRef = 5843622F2F5EEB9100DD0F08 /* AGENTS.md */; };
 		584362322F5EEBA500DD0F08 /* SPEC.md in Resources */ = {isa = PBXBuildFile; fileRef = 584362312F5EEBA500DD0F08 /* SPEC.md */; };
+		584362462F5EF14600DD0F08 /* bugs.md in Resources */ = {isa = PBXBuildFile; fileRef = 584362452F5EF13F00DD0F08 /* bugs.md */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		584362212F5EEAD000DD0F08 /* Drama.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Drama.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5843622F2F5EEB9100DD0F08 /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = text; path = AGENTS.md; sourceTree = "<group>"; };
 		584362312F5EEBA500DD0F08 /* SPEC.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = SPEC.md; sourceTree = "<group>"; };
+		584362452F5EF13F00DD0F08 /* bugs.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = bugs.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -39,6 +41,7 @@
 		584362182F5EEAD000DD0F08 = {
 			isa = PBXGroup;
 			children = (
+				584362452F5EF13F00DD0F08 /* bugs.md */,
 				584362312F5EEBA500DD0F08 /* SPEC.md */,
 				5843622F2F5EEB9100DD0F08 /* AGENTS.md */,
 				584362232F5EEAD000DD0F08 /* Drama */,
@@ -120,6 +123,7 @@
 			files = (
 				584362302F5EEB9100DD0F08 /* AGENTS.md in Resources */,
 				584362322F5EEBA500DD0F08 /* SPEC.md in Resources */,
+				584362462F5EF14600DD0F08 /* bugs.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

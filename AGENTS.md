@@ -13,7 +13,7 @@
 - 支持 iOS 17 及以上
 - 不使用第三方库
 - 如使用 ObservableObject，请 import Combine
-
+- 优先使用 iPhone 17 模拟器编译
 ---
 
 ## API 约束（必须严格遵守）
