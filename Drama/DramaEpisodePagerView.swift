@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 struct DramaEpisodePagerView: View {
@@ -132,35 +133,60 @@ private struct EpisodePageView: View {
         episode.aspectRatio >= (4.0 / 3.0)
     }
 
+    private var isCurrentActivePlayer: Bool {
+        isActive && playbackManager.isCurrent(dramaId: drama.id, episodeNumber: episode.episodeNumber)
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 70)
+        ZStack(alignment: .bottomLeading) {
+            if isCurrentActivePlayer {
+                ZStack {
+                    SharedVideoPlayerView(videoGravity: .resizeAspectFill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
 
-            ZStack {
-                if isActive, playbackManager.isCurrent(dramaId: drama.id, episodeNumber: episode.episodeNumber) {
-                    SharedVideoPlayerView()
-                } else {
-                    DramaPosterView(drama: drama, aspectRatio: Double(clampedAspectRatio))
+                    if !playbackManager.isPlaying {
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 72))
+                            .foregroundStyle(.white.opacity(0.9))
+                            .shadow(radius: 8)
+                    }
                 }
+            } else {
+                posterBackground
             }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(clampedAspectRatio, contentMode: .fit)
-            .background(Color.black)
 
-            if shouldShowFullscreenButton {
-                Button(action: onTapFullscreen) {
-                    Text("全屏观看")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 9)
-                        .background(Color.white.opacity(0.2), in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 10)
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.82)],
+                startPoint: .center,
+                endPoint: .bottom
+            )
+
+            if isCurrentActivePlayer {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        playbackManager.togglePlayback()
+                    }
             }
 
             VStack(alignment: .leading, spacing: 8) {
+                if shouldShowFullscreenButton {
+                    HStack {
+                        Spacer()
+                        Button(action: onTapFullscreen) {
+                            Text("全屏观看")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 9)
+                                .background(Color.white.opacity(0.2), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.bottom, 10)
+                }
+
                 Text(episode.title)
                     .font(.title3.bold())
                     .foregroundStyle(.white)
@@ -176,19 +202,47 @@ private struct EpisodePageView: View {
                         .lineLimit(3)
                 }
             }
+            .allowsHitTesting(false)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
-            .padding(.top, 14)
-
-            Spacer(minLength: 24)
+            .padding(.bottom, 42)
         }
         .frame(maxWidth: .infinity)
         .frame(height: containerHeight)
         .background(Color.black)
     }
 
-    private var clampedAspectRatio: CGFloat {
-        CGFloat(min(max(episode.aspectRatio, 0.45), 2.2))
+    @ViewBuilder
+    private var posterBackground: some View {
+        if let posterURL = drama.posterURL {
+            AsyncImage(url: posterURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    fallbackPoster
+                case .empty:
+                    ProgressView()
+                        .tint(.white)
+                @unknown default:
+                    fallbackPoster
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+        } else {
+            fallbackPoster
+        }
+    }
+
+    private var fallbackPoster: some View {
+        LinearGradient(
+            colors: [Color.black, Color.gray.opacity(0.55)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 }
 

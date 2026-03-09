@@ -1,5 +1,6 @@
-import AVKit
+import AVFoundation
 import SwiftUI
+import UIKit
 
 struct DramaPosterView: View {
     let drama: Drama
@@ -51,10 +52,40 @@ struct DramaPosterView: View {
 
 struct SharedVideoPlayerView: View {
     @EnvironmentObject private var playbackManager: PlaybackManager
+    var videoGravity: AVLayerVideoGravity = .resizeAspect
 
     var body: some View {
-        VideoPlayer(player: playbackManager.player)
+        PlayerLayerContainerView(player: playbackManager.player, videoGravity: videoGravity)
             .background(Color.black)
+    }
+}
+
+private struct PlayerLayerContainerView: UIViewRepresentable {
+    let player: AVPlayer
+    let videoGravity: AVLayerVideoGravity
+
+    func makeUIView(context: Context) -> PlayerContainerUIView {
+        let view = PlayerContainerUIView()
+        view.playerLayer.player = player
+        view.playerLayer.videoGravity = videoGravity
+        return view
+    }
+
+    func updateUIView(_ uiView: PlayerContainerUIView, context: Context) {
+        if uiView.playerLayer.player !== player {
+            uiView.playerLayer.player = player
+        }
+        uiView.playerLayer.videoGravity = videoGravity
+    }
+}
+
+private final class PlayerContainerUIView: UIView {
+    override class var layerClass: AnyClass {
+        AVPlayerLayer.self
+    }
+
+    var playerLayer: AVPlayerLayer {
+        layer as! AVPlayerLayer
     }
 }
 
