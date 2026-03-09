@@ -141,9 +141,8 @@ private struct EpisodePageView: View {
         ZStack(alignment: .bottomLeading) {
             if isCurrentActivePlayer {
                 ZStack {
-                    SharedVideoPlayerView(videoGravity: .resizeAspectFill)
+                    SharedVideoPlayerView(videoGravity: .resizeAspect)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
 
                     if !playbackManager.isPlaying {
                         Image(systemName: "play.circle.fill")
