@@ -4,6 +4,18 @@ import Foundation
 
 @MainActor
 final class PlaybackManager: ObservableObject {
+    private struct PersistedEpisodeProgress: Codable {
+        let dramaId: String
+        let episodeNumber: Int
+        let progressSeconds: TimeInterval
+    }
+
+    private struct PersistedPlaybackState: Codable {
+        let schemaVersion: Int
+        let episodeProgresses: [PersistedEpisodeProgress]
+        let lastPlayedAtByDramaId: [String: Date]
+    }
+
     struct EpisodeKey: Hashable {
         let dramaId: String
         let episodeNumber: Int
@@ -30,10 +42,20 @@ final class PlaybackManager: ObservableObject {
         }
     }
 
+    struct CacheStatus {
+        let usedBytes: Int64
+        let fileCount: Int
+        let limitBytes: Int64
+
+        static let empty = CacheStatus(usedBytes: 0, fileCount: 0, limitBytes: 2 * 1024 * 1024 * 1024)
+    }
+
     @Published private(set) var player = AVPlayer()
     @Published private(set) var currentSelection: PlaybackSelection?
     @Published private(set) var historyItems: [HistoryItem] = []
     @Published private(set) var isPlaying: Bool = false
+    @Published private(set) var cacheStatus: CacheStatus = .empty
+    @Published private(set) var isClearingCache = false
     @Published var playbackRate: Float = 1.0 {
         didSet {
             applyPlaybackRate()
@@ -45,6 +67,18 @@ final class PlaybackManager: ObservableObject {
     private var catalogByDramaId: [String: Drama] = [:]
     private var periodicTimeObserverToken: Any?
     private var itemDidFinishObserver: NSObjectProtocol?
+    private var playRequestToken: UInt64 = 0
+    private let videoCacheManager = VideoCacheManager()
+    private var persistTask: Task<Void, Never>?
+    private let fileManager = FileManager.default
+    private let stateFileURL: URL = {
+        let fm = FileManager.default
+        let baseDirectory = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fm.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        let stateDirectory = baseDirectory.appendingPathComponent("PlaybackState", isDirectory: true)
+        return stateDirectory.appendingPathComponent("playback_state.json", isDirectory: false)
+    }()
 
     init() {
         player.actionAtItemEnd = .pause
@@ -54,6 +88,11 @@ final class PlaybackManager: ObservableObject {
                 self?.saveCurrentProgress(at: time.seconds)
             }
         }
+        loadPersistedState()
+        rebuildHistoryItems()
+        Task {
+            await refreshVideoCacheStatus()
+        }
     }
 
     func updateCatalog(_ catalog: [String: Drama]) {
@@ -62,11 +101,12 @@ final class PlaybackManager: ObservableObject {
     }
 
     func play(drama: Drama, episode: Episode, autoPlay: Bool = true) {
-        guard let url = episode.videoURL else { return }
+        guard let remoteURL = episode.videoURL else { return }
 
         let nextSelection = PlaybackSelection(dramaId: drama.id, episodeNumber: episode.episodeNumber)
         if currentSelection == nextSelection {
             lastPlayedAtByDramaId[drama.id] = Date()
+            schedulePersistState()
             autoPlay ? resume() : pause()
             rebuildHistoryItems()
             return
@@ -74,24 +114,25 @@ final class PlaybackManager: ObservableObject {
 
         saveCurrentProgress(at: player.currentTime().seconds)
 
-        let item = AVPlayerItem(url: url)
-        player.replaceCurrentItem(with: item)
-        observeItemDidFinish(for: item)
-
         currentSelection = nextSelection
         lastPlayedAtByDramaId[drama.id] = Date()
+        schedulePersistState()
 
         let key = EpisodeKey(dramaId: drama.id, episodeNumber: episode.episodeNumber)
-        if let savedTime = episodeProgressByKey[key], savedTime > 0 {
-            let seekTime = CMTime(seconds: savedTime, preferredTimescale: 600)
-            player.seek(to: seekTime, toleranceBefore: .zero, toleranceAfter: .zero)
-        }
+        let savedTime = episodeProgressByKey[key] ?? 0
+        playRequestToken &+= 1
+        let currentToken = playRequestToken
 
-        if autoPlay {
-            resume()
-        } else {
-            player.pause()
-            isPlaying = false
+        Task { [weak self] in
+            guard let self else { return }
+            let playableURL = await self.videoCacheManager.preparePlayableURL(for: remoteURL)
+            await self.applyPlayRequest(
+                playableURL: playableURL,
+                remoteURL: remoteURL,
+                savedTime: savedTime,
+                autoPlay: autoPlay,
+                token: currentToken
+            )
         }
 
         rebuildHistoryItems()
@@ -184,6 +225,23 @@ final class PlaybackManager: ObservableObject {
         }
     }
 
+    func refreshVideoCacheStatus() async {
+        let summary = await videoCacheManager.cacheSummary()
+        cacheStatus = CacheStatus(
+            usedBytes: summary.totalBytes,
+            fileCount: summary.fileCount,
+            limitBytes: summary.limitBytes
+        )
+    }
+
+    func clearVideoCache() async {
+        guard !isClearingCache else { return }
+        isClearingCache = true
+        await videoCacheManager.clearAllCache()
+        await refreshVideoCacheStatus()
+        isClearingCache = false
+    }
+
     private func latestWatchedEpisodeNumber(in drama: Drama) -> Int? {
         let watchedEpisodes = drama.sortedEpisodes.filter {
             let key = EpisodeKey(dramaId: drama.id, episodeNumber: $0.episodeNumber)
@@ -199,7 +257,11 @@ final class PlaybackManager: ObservableObject {
 
         let key = EpisodeKey(dramaId: selection.dramaId, episodeNumber: selection.episodeNumber)
         let existingValue = episodeProgressByKey[key] ?? 0
-        episodeProgressByKey[key] = max(existingValue, seconds)
+        let updatedValue = max(existingValue, seconds)
+        episodeProgressByKey[key] = updatedValue
+        if updatedValue != existingValue {
+            schedulePersistState()
+        }
     }
 
     private func observeItemDidFinish(for item: AVPlayerItem) {
@@ -227,6 +289,37 @@ final class PlaybackManager: ObservableObject {
         player.rate = playbackRate
     }
 
+    private func applyPlayRequest(playableURL: URL,
+                                  remoteURL: URL,
+                                  savedTime: TimeInterval,
+                                  autoPlay: Bool,
+                                  token: UInt64) async {
+        guard token == playRequestToken else {
+            return
+        }
+
+        let item = AVPlayerItem(url: playableURL)
+        player.replaceCurrentItem(with: item)
+        observeItemDidFinish(for: item)
+
+        if savedTime > 0 {
+            let seekTime = CMTime(seconds: savedTime, preferredTimescale: 600)
+            await player.seek(to: seekTime, toleranceBefore: .zero, toleranceAfter: .zero)
+        }
+
+        if autoPlay {
+            resume()
+        } else {
+            player.pause()
+            isPlaying = false
+        }
+
+        Task {
+            await videoCacheManager.touchCachedAsset(for: remoteURL)
+        }
+        rebuildHistoryItems()
+    }
+
     private func rebuildHistoryItems() {
         let sortedIds = lastPlayedAtByDramaId
             .sorted(by: { $0.value > $1.value })
@@ -251,6 +344,59 @@ final class PlaybackManager: ObservableObject {
                 totalEpisodes: max(drama.totalEpisodes, drama.episodes.count),
                 updatedAt: updatedAt
             )
+        }
+    }
+
+    private func loadPersistedState() {
+        guard fileManager.fileExists(atPath: stateFileURL.path) else { return }
+        guard let data = try? Data(contentsOf: stateFileURL) else { return }
+        guard let decoded = try? JSONDecoder().decode(PersistedPlaybackState.self, from: data) else { return }
+        guard decoded.schemaVersion == 1 else { return }
+
+        var progressMap: [EpisodeKey: TimeInterval] = [:]
+        for item in decoded.episodeProgresses where item.progressSeconds > 0 {
+            let key = EpisodeKey(dramaId: item.dramaId, episodeNumber: item.episodeNumber)
+            progressMap[key] = max(progressMap[key] ?? 0, item.progressSeconds)
+        }
+
+        episodeProgressByKey = progressMap
+        lastPlayedAtByDramaId = decoded.lastPlayedAtByDramaId
+    }
+
+    private func schedulePersistState() {
+        guard persistTask == nil else { return }
+        persistTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.persistTask = nil }
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            if Task.isCancelled { return }
+            self.persistStateNow()
+        }
+    }
+
+    private func persistStateNow() {
+        let state = PersistedPlaybackState(
+            schemaVersion: 1,
+            episodeProgresses: episodeProgressByKey.map {
+                PersistedEpisodeProgress(
+                    dramaId: $0.key.dramaId,
+                    episodeNumber: $0.key.episodeNumber,
+                    progressSeconds: $0.value
+                )
+            },
+            lastPlayedAtByDramaId: lastPlayedAtByDramaId
+        )
+
+        do {
+            try fileManager.createDirectory(
+                at: stateFileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            let data = try JSONEncoder().encode(state)
+            try data.write(to: stateFileURL, options: .atomic)
+        } catch {
+            // Ignore persistence failures and keep playback functional.
         }
     }
 }

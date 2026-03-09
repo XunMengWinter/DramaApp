@@ -68,7 +68,7 @@ struct HomeTabView: View {
                             HomeDramaPage(
                                 drama: drama,
                                 isActive: selectedDramaId == drama.id && presentingDrama == nil,
-                                pageHeight: proxy.size.height,
+                                pageHeight: proxy.size.height + proxy.safeAreaInsets.top,
                                 episode: playbackManager.preferredEpisode(in: drama)
                             )
                             .id(drama.id)
@@ -163,6 +163,7 @@ private struct HomeDramaPage: View {
             .frame(height: 260)
 
             VStack(alignment: .leading, spacing: 8) {
+                Spacer()
                 Text(drama.title)
                     .font(.title3.bold())
                     .foregroundStyle(.white)
