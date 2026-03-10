@@ -10,6 +10,7 @@
 		584362302F5EEB9100DD0F08 /* AGENTS.md in Resources */ = {isa = PBXBuildFile; fileRef = 5843622F2F5EEB9100DD0F08 /* AGENTS.md */; };
 		584362322F5EEBA500DD0F08 /* SPEC.md in Resources */ = {isa = PBXBuildFile; fileRef = 584362312F5EEBA500DD0F08 /* SPEC.md */; };
 		584362462F5EF14600DD0F08 /* bugs.md in Resources */ = {isa = PBXBuildFile; fileRef = 584362452F5EF13F00DD0F08 /* bugs.md */; };
+		5876D8E22F5FDFAA009EF24D /* drama-screenshot2.jpg in Resources */ = {isa = PBXBuildFile; fileRef = 5876D8E12F5FDFAA009EF24D /* drama-screenshot2.jpg */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -17,6 +18,7 @@
 		5843622F2F5EEB9100DD0F08 /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = text; path = AGENTS.md; sourceTree = "<group>"; };
 		584362312F5EEBA500DD0F08 /* SPEC.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = SPEC.md; sourceTree = "<group>"; };
 		584362452F5EF13F00DD0F08 /* bugs.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = bugs.md; sourceTree = "<group>"; };
+		5876D8E12F5FDFAA009EF24D /* drama-screenshot2.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = "drama-screenshot2.jpg"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -41,6 +43,7 @@
 		584362182F5EEAD000DD0F08 = {
 			isa = PBXGroup;
 			children = (
+				5876D8E12F5FDFAA009EF24D /* drama-screenshot2.jpg */,
 				584362452F5EF13F00DD0F08 /* bugs.md */,
 				584362312F5EEBA500DD0F08 /* SPEC.md */,
 				5843622F2F5EEB9100DD0F08 /* AGENTS.md */,
@@ -123,6 +126,7 @@
 			files = (
 				584362302F5EEB9100DD0F08 /* AGENTS.md in Resources */,
 				584362322F5EEBA500DD0F08 /* SPEC.md in Resources */,
+				5876D8E22F5FDFAA009EF24D /* drama-screenshot2.jpg in Resources */,
 				584362462F5EF14600DD0F08 /* bugs.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
